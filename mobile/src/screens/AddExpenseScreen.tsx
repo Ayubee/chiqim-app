@@ -14,7 +14,11 @@ import { useExpenses } from '@/context/ExpenseContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatAmount } from '@/utils/date';
 
-export default function AddExpenseScreen() {
+interface Props {
+  onClose?: () => void;
+}
+
+export default function AddExpenseScreen({ onClose }: Props) {
   const { todayTotal, addExpenseError } = useExpenses();
   const { store } = useAuth();
   const [showSuccess, setShowSuccess] = useState(false);
@@ -22,14 +26,26 @@ export default function AddExpenseScreen() {
 
   const handleSuccess = useCallback(() => {
     setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
-  }, []);
+    setTimeout(() => {
+      setShowSuccess(false);
+      if (onClose) {
+        onClose();
+      }
+    }, 1200);
+  }, [onClose]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Chiqim qo'shish</Text>
-        {store && <Text style={styles.storeName}>{store.name}</Text>}
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>Chiqim qo‘shish</Text>
+          {store && <Text style={styles.storeName}>{store.name}</Text>}
+        </View>
+        {onClose && (
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.closeBtnText}>Yopish</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Today total summary */}
@@ -65,10 +81,29 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  closeBtn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    backgroundColor: Colors.card,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  closeBtnText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: '600',
   },
   headerTitle: {
     fontSize: FontSize.xl,

@@ -45,7 +45,7 @@ export function formatDateUzbek(dateStr: string): string {
  * Format amount to Uzbek som display (e.g. 30 000 so'm)
  */
 export function formatAmount(amount: number): string {
-  return amount.toLocaleString('uz-UZ').replace(/,/g, ' ') + " so'm";
+  return amount.toLocaleString('uz-UZ').replace(/,/g, ' ').replace(/\u00a0/g, ' ') + " so'm";
 }
 
 /**
@@ -93,7 +93,7 @@ export function formatSomInput(raw: string): string {
   const digits = raw.replace(/[^\d]/g, '');
   if (!digits) return '';
   const n = parseInt(digits, 10);
-  return n.toLocaleString('uz-UZ').replace(/,/g, ' ');
+  return n.toLocaleString('uz-UZ').replace(/,/g, ' ').replace(/\u00a0/g, ' ');
 }
 
 /**

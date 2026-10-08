@@ -15,7 +15,7 @@ import {
   fetchProfile,
   fetchStore,
 } from '@/services/authService';
-import { setSyncContext, clearSyncContext, addSyncListener } from '@/services/syncService';
+import { setSyncContext, clearSyncContext, addSyncListener, runSync } from '@/services/syncService';
 import { getSyncMeta, setSyncMeta, getPendingCount } from '@/db/expenses';
 import { getDatabase } from '@/db/database';
 import { generateUUID } from '@/utils/uuid';
@@ -126,7 +126,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session]);
 
   const triggerSync = useCallback(async () => {
-    const { runSync } = await import('@/services/syncService');
     await runSync(async () => {
       // Auth error handler
       setSession(null);

@@ -20,9 +20,10 @@ interface Props {
   navigation?: {
     navigate: (screen: string) => void;
   };
+  onOpenAddExpense?: () => void;
 }
 
-export default function HomeScreen({ navigation }: Props) {
+export default function HomeScreen({ navigation, onOpenAddExpense }: Props) {
   const { profile, store, pendingCount, lastSyncTime, triggerSync, isLoading: authLoading } =
     useAuth();
   const { todayExpenses, todayTotal, loadTodayExpenses } = useExpenses();
@@ -124,6 +125,22 @@ export default function HomeScreen({ navigation }: Props) {
         }
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Floating Action Button: + Chiqim qo'shish */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => {
+          if (onOpenAddExpense) {
+            onOpenAddExpense();
+          } else if (navigation?.navigate) {
+            navigation.navigate('AddExpense');
+          }
+        }}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+        <Text style={styles.fabText}>Chiqim qo‘shish</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -245,5 +262,34 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     textAlign: 'center',
     maxWidth: 220,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: Spacing.lg,
+    left: Spacing.lg,
+    right: Spacing.lg,
+    backgroundColor: Colors.primary,
+    height: 54,
+    borderRadius: BorderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  fabIcon: {
+    fontSize: 24,
+    color: Colors.white,
+    fontWeight: '700',
+    marginRight: Spacing.sm,
+    lineHeight: 26,
+  },
+  fabText: {
+    fontSize: FontSize.md,
+    color: Colors.white,
+    fontWeight: '700',
   },
 });

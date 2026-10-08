@@ -36,10 +36,11 @@ import {
   command,
   createSeller,
   dashboard,
-  demoMode,
+  configuration,
   report,
   supabase,
 } from "./api";
+import { classifyFailure, ConnectionFailure, loadAdminProfile } from "./auth";
 import type {
   Audit,
   Dashboard,
@@ -172,9 +173,9 @@ function Login() {
         password: String(data.get("password")),
       });
       if (result.error)
-        setError("Email yoki parol noto‘g‘ri. Qayta urinib ko‘ring.");
-    } catch {
-      setError("Ulanishda xatolik. Qayta urinib ko‘ring.");
+        setError(classifyFailure(result.error, "login").message);
+    } catch (error) {
+      setError(classifyFailure(error, "login").message);
     } finally {
       setBusy(false);
     }
@@ -236,29 +237,38 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null),
     [profile, setProfile] = useState<Profile | null>(null),
     [busy, setBusy] = useState(true),
-    [error, setError] = useState(""),
+    [error, setError] = useState<ConnectionFailure | null>(null),
     [retry, setRetry] = useState(0);
   useEffect(() => {
-    if (!supabase || demoMode) {
+    if (!supabase) {
       setBusy(false);
       return;
     }
     let live = true;
+    setError(null);
+    setBusy(true);
     const { data } = supabase.auth.onAuthStateChange((_event, current) => {
-      if (live) setSession(current);
+      if (live) {
+        setSession(current);
+        if (!current) {
+          setProfile(null);
+          setError(null);
+          setBusy(false);
+        }
+      }
     });
     supabase.auth
       .getSession()
       .then(({ data, error }) => {
         if (live) {
           setSession(data.session);
-          if (error) setError("Sessiyani yuklab bo‘lmadi.");
+          if (error) setError(classifyFailure(error));
           setBusy(false);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (live) {
-          setError("Ulanishda xatolik.");
+          setError(classifyFailure(error));
           setBusy(false);
         }
       });
@@ -266,90 +276,97 @@ export default function App() {
       live = false;
       data.subscription.unsubscribe();
     };
-  }, []);
+  }, [retry]);
   useEffect(() => {
     if (!session || !supabase) return;
     let live = true;
     setProfile(null);
     setBusy(true);
-    setError("");
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    setError(null);
+    loadAdminProfile(supabase, session.user.id)
+      .then((profile) => {
         if (live) {
-          setProfile(data);
-          if (error) setError("Profilni yuklab bo‘lmadi.");
-          setBusy(false);
+          setProfile(profile);
         }
+      })
+      .catch((error) => {
+        if (live) setError(classifyFailure(error));
+      })
+      .finally(() => {
+        if (live) setBusy(false);
       });
     return () => {
       live = false;
     };
-  }, [session?.user.id, retry]);
-  if (demoMode)
-    return (
-      <Admin
-        profile={{
-          id: "demo-admin",
-          full_name: "Administrator",
-          role: "admin",
-          store_id: null,
-          is_active: true,
-          assignment_version: 1,
-        }}
-      />
-    );
+  }, [session?.user.id, session?.access_token, retry]);
   if (!supabase)
     return (
       <div className="setup-page">
         <Brand />
         <div className="setup-card">
           <Building2 size={34} />
-          <h1>Ulanishni sozlash kerak</h1>
+          <h1>
+            {configuration.status === "invalid"
+              ? "Ulanish sozlamasi noto‘g‘ri"
+              : "Konfiguratsiya yetishmaydi"}
+          </h1>
           <p>
-            Backend hali ulanmagan. Administrator uchun Supabase URL va ochiq
-            API kalitini <code>admin/.env</code> faylida sozlang.
+            {configuration.status === "invalid"
+              ? configuration.reason
+              : configuration.status === "missing"
+                ? `Yetishmayotgan qiymatlar: ${configuration.missing.join(", ")}.`
+                : ""}
           </p>
           <p>
-            To‘liq yo‘riqnoma: <code>docs/backend/README.md</code>
+            Haqiqiy qiymatlar <code>admin/.env.local</code> faylidan olinadi.
+            Lokal backendni sozlash: <code>backend/LOCAL_SETUP.md</code>. Env
+            o‘zgargach dev serverni qayta ishga tushiring.
           </p>
           <span className="tag">Haqiqiy ma’lumotlar hali yuklanmagan</span>
         </div>
       </div>
     );
-  if (busy)
+  if (
+    busy ||
+    (session && (!profile || profile.id !== session.user.id) && !error)
+  )
     return (
       <div className="loading-page">
         <Spinner /> Yuklanmoqda…
       </div>
     );
-  if (!session) return <Login />;
-  if (error || !profile || profile.role !== "admin" || !profile.is_active)
+  if (error)
     return (
       <div className="setup-page">
         <Brand />
         <div className="setup-card">
           <ShieldCheck size={32} />
-          <h1>Kirish cheklangan</h1>
-          <p>
-            {error ||
-              "Faol administrator profili kerak. Hisobingiz vakolatini loyiha administratori bilan tekshiring."}
-          </p>
+          <h1>
+            {error.code === "network"
+              ? "Serverga ulanib bo‘lmadi"
+              : ["admin_required", "inactive"].includes(error.code)
+                ? "Administrator huquqi yo‘q"
+                : "Backendni tekshirish kerak"}
+          </h1>
+          <p>{error.message}</p>
           <div className="actions">
             <button className="button" onClick={() => setRetry((n) => n + 1)}>
               Qayta urinish
             </button>
-            <button className="button" onClick={() => supabase!.auth.signOut()}>
-              Chiqish
-            </button>
+            {session && (
+              <button
+                className="button"
+                onClick={() => supabase!.auth.signOut({ scope: "local" })}
+              >
+                Chiqish
+              </button>
+            )}
           </div>
         </div>
       </div>
     );
-  return <Admin profile={profile} />;
+  if (!session || !profile) return <Login />;
+  return <Admin key={profile.id} profile={profile} />;
 }
 type Dialog =
   | { type: "store"; store?: Store }
@@ -467,7 +484,7 @@ function Admin({ profile }: { profile: Profile }) {
   const totalToday = stores.reduce((sum, s) => sum + BigInt(s.today_total), 0n);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!dialog || demoMode) return;
+    if (!dialog) return;
     const fd = new FormData(event.currentTarget);
     const field = (key: string) => String(fd.get(key) ?? "");
     setSaving(true);
@@ -640,11 +657,7 @@ function Admin({ profile }: { profile: Profile }) {
             <button
               title="Hisobdan chiqish"
               className="icon-button"
-              onClick={() =>
-                demoMode
-                  ? location.assign(location.pathname)
-                  : supabase!.auth.signOut()
-              }
+              onClick={() => supabase!.auth.signOut({ scope: "local" })}
             >
               <LogOut size={17} />
             </button>
@@ -671,12 +684,6 @@ function Admin({ profile }: { profile: Profile }) {
           </span>
         </header>
         <main className="content">
-          {demoMode && (
-            <div className="demo-banner">
-              Ko‘rgazma rejimi · Namunaviy ma’lumotlar · O‘zgarishlar
-              saqlanmaydi
-            </div>
-          )}
           <div className="page-heading">
             <div>
               {selected && (
@@ -721,7 +728,6 @@ function Admin({ profile }: { profile: Profile }) {
               {selected ? (
                 <button
                   className="button"
-                  disabled={demoMode}
                   onClick={() => open({ type: "store", store: selected })}
                 >
                   <Pencil size={15} />
@@ -730,7 +736,6 @@ function Admin({ profile }: { profile: Profile }) {
               ) : (
                 <button
                   className="button primary"
-                  disabled={demoMode}
                   onClick={() =>
                     open({ type: view === "stores" ? "store" : "seller" })
                   }
@@ -744,7 +749,7 @@ function Admin({ profile }: { profile: Profile }) {
           {loadError && (
             <ErrorBox text={loadError} retry={() => void refresh()} />
           )}
-          {!selected && view === "stores" && (
+          {data && !selected && view === "stores" && (
             <div className="stats">
               <Stat
                 label="Bugungi jami chiqim"
@@ -781,7 +786,6 @@ function Admin({ profile }: { profile: Profile }) {
                       <button
                         key={p.id}
                         className="team-member"
-                        disabled={demoMode}
                         onClick={() => open({ type: "seller", seller: p })}
                       >
                         <span className="avatar small">
@@ -799,7 +803,6 @@ function Admin({ profile }: { profile: Profile }) {
                 </div>
                 <button
                   className="text-button"
-                  disabled={demoMode}
                   onClick={() => open({ type: "seller" })}
                 >
                   <Plus size={15} />
@@ -818,7 +821,7 @@ function Admin({ profile }: { profile: Profile }) {
                   <div className="actions">
                     <button
                       className="button"
-                      disabled={demoMode || !sellers.length}
+                      disabled={!sellers.length}
                       onClick={() => open({ type: "record" })}
                     >
                       <Plus size={16} />
@@ -887,7 +890,7 @@ function Admin({ profile }: { profile: Profile }) {
                   <div className="filter-total">
                     <span>Davr uchun jami</span>
                     <strong>
-                      {reportLoading ? "…" : money(rows?.total ?? 0)}{" "}
+                      {reportLoading || !rows ? "…" : money(rows.total)}{" "}
                       <small>so‘m</small>
                     </strong>
                   </div>
@@ -902,7 +905,7 @@ function Admin({ profile }: { profile: Profile }) {
                   <div className="table-loading">
                     <Spinner /> Yozuvlar yuklanmoqda…
                   </div>
-                ) : rows?.rows.length ? (
+                ) : !rows ? null : rows.rows.length ? (
                   <div className="table-scroll">
                     <table className="expenses-table">
                       <thead>
@@ -949,7 +952,7 @@ function Admin({ profile }: { profile: Profile }) {
                                 </button>
                                 <button
                                   className="icon-button"
-                                  disabled={demoMode || !!e.deleted_at}
+                                  disabled={!!e.deleted_at}
                                   title="Tahrirlash"
                                   onClick={() =>
                                     open({ type: "edit", expense: e })
@@ -959,7 +962,7 @@ function Admin({ profile }: { profile: Profile }) {
                                 </button>
                                 <button
                                   className="icon-button danger-text"
-                                  disabled={demoMode || !!e.deleted_at}
+                                  disabled={!!e.deleted_at}
                                   title="Bekor qilish"
                                   onClick={() =>
                                     open({ type: "cancel", expense: e })
@@ -1050,7 +1053,7 @@ function Admin({ profile }: { profile: Profile }) {
                 <div className="table-loading">
                   <Spinner /> Ma’lumotlar yuklanmoqda…
                 </div>
-              ) : view === "stores" ? (
+              ) : !data ? null : view === "stores" ? (
                 filteredStores.length ? (
                   <div className="table-scroll">
                     <table className="stores-table">
@@ -1135,9 +1138,7 @@ function Admin({ profile }: { profile: Profile }) {
                 ) : (
                   <Empty
                     title={
-                      search
-                        ? "Magazin topilmadi"
-                        : "Birinchi magaziningizni qo‘shing"
+                      search ? "Magazin topilmadi" : "Magazinlar hali yo‘q"
                     }
                   >
                     {search
@@ -1181,7 +1182,6 @@ function Admin({ profile }: { profile: Profile }) {
                           <td className="right">
                             <button
                               className="icon-button"
-                              disabled={demoMode}
                               title="Sotuvchini tahrirlash"
                               onClick={() =>
                                 open({ type: "seller", seller: p })
@@ -1500,7 +1500,7 @@ function Admin({ profile }: { profile: Profile }) {
                 </button>
                 <button
                   className={`button ${dialog.type === "cancel" ? "danger" : "primary"}`}
-                  disabled={saving || demoMode}
+                  disabled={saving}
                 >
                   {saving ? (
                     <Spinner />
@@ -1612,9 +1612,7 @@ function AuditHistory({ expense }: { expense: Expense }) {
         ))
       ) : (
         <Empty title="Audit yozuvlari yo‘q">
-          {demoMode
-            ? "Ko‘rgazma rejimida audit yuklanmaydi."
-            : "Bu yozuv uchun tarix topilmadi."}
+          Bu yozuv uchun tarix topilmadi.
         </Empty>
       )}
     </div>

@@ -1,3 +1,4 @@
+import { classifyFailure, ConnectionFailure } from "./auth.ts";
 export const money = (value: string | number | bigint) =>
   BigInt(value)
     .toString()
@@ -42,6 +43,7 @@ export const syncLabel = (value: string | null) =>
     ? `${dateLabel(tashkentDate(new Date(value)))} · ${time(value)}`
     : "Hali sinxronlanmagan";
 export function message(error: unknown): string {
+  if (error instanceof ConnectionFailure) return error.message;
   const raw = error instanceof Error ? error.message : String(error);
   const map: Record<string, string> = {
     INVALID_AMOUNT: "Summani musbat butun so‘m ko‘rinishida kiriting.",
@@ -61,5 +63,5 @@ export function message(error: unknown): string {
     ALREADY_CANCELLED: "Bu yozuv allaqachon bekor qilingan.",
   };
   for (const key in map) if (raw.includes(key)) return map[key];
-  return "Amal bajarilmadi. Internet aloqasini tekshirib, qayta urinib ko‘ring.";
+  return classifyFailure(error).message;
 }

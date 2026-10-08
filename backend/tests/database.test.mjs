@@ -35,12 +35,8 @@ test("V1 PostgreSQL migration, RLS, sync and admin invariants", async (t) => {
     outsider,
   ]);
   await db.query(
-    "insert into public.stores(id,name) values ($1,'Chilonzor'),($2,'Yunusobod')",
-    [store, second],
-  );
-  await db.query(
-    `insert into public.profiles(id,full_name,store_id,role) values ($1,'Admin',null,'admin'),($2,'Ali',$4,'seller'),($3,'Vali',$4,'seller')`,
-    [admin, seller, other, store],
+    "insert into public.profiles(id,full_name,role) values ($1,'Admin','admin')",
+    [admin],
   );
   const user = async (id, fn) => {
     await db.query("select set_config('request.jwt.claim.sub',$1,false)", [id]);
@@ -58,6 +54,22 @@ test("V1 PostgreSQL migration, RLS, sync and admin invariants", async (t) => {
         data,
       ])
     ).rows[0].result;
+  await t.test(
+    "authenticated admin receives empty arrays from a new database",
+    async () => {
+      await user(admin, async () => {
+        assert.deepEqual(await rpc("dashboard"), { stores: [], profiles: [] });
+      });
+    },
+  );
+  await db.query(
+    "insert into public.stores(id,name) values ($1,'Chilonzor'),($2,'Yunusobod')",
+    [store, second],
+  );
+  await db.query(
+    `insert into public.profiles(id,full_name,store_id,role) values ($1,'Ali',$3,'seller'),($2,'Vali',$3,'seller')`,
+    [seller, other, store],
+  );
   const today = (
     await db.query(
       "select (clock_timestamp() at time zone 'Asia/Tashkent')::date::text d",
@@ -262,7 +274,7 @@ test("V1 PostgreSQL migration, RLS, sync and admin invariants", async (t) => {
           [{ expense_date: "2999-01-01" }, "INVALID_DATE"],
           [{ occurred_at: "2026-01-01T00:00:00" }, "INVALID_TIME"],
         ]) {
-      const op = operation();
+          const op = operation();
           op.expense = { ...op.expense, ...change };
           assert.equal((await sync(op)).error_code, code);
         }
@@ -409,7 +421,10 @@ test("V1 PostgreSQL migration, RLS, sync and admin invariants", async (t) => {
       );
       await user(admin, async () => {
         const deactivated = await rpc("save_seller", {
-          id: seller, full_name: "Ali", store_id: store, is_active: false,
+          id: seller,
+          full_name: "Ali",
+          store_id: store,
+          is_active: false,
           expected_assignment_version: 3,
         });
         assert.equal(deactivated.is_active, false);

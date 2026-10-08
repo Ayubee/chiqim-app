@@ -8,5 +8,9 @@ npm.cmd test
 npm.cmd run check
 ```
 
-Ishga tushirish, deployment, credential va bootstrap yo‘riqnomasi: `../docs/backend/README.md`.
+Joriy lokal sozlash, Docker/WSL talablari va xavfsiz admin bootstrap: [LOCAL_SETUP.md](LOCAL_SETUP.md).
+Keyinchalik sotuvchi telefonlari uchun cloud: [CLOUD_SETUP.md](CLOUD_SETUP.md).
+`npm.cmd run local:setup` mavjud ma’lumotlarni reset qilmasdan lokal backend va admin envni tayyorlaydi; Docker ishlashi kerak.
+Jadvallar/RLS/RPCni faqat o‘qib tekshirish: `scripts/diagnostics.sql`.
+Avvalgi API arxitekturasi: `../docs/backend/README.md` (joriy ulanish uchun yuqoridagi yo‘riqnomadan foydalaning).
 Mobil API: `../docs/integration-contract.md`.
