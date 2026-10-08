@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Chiqim",
+    "slug": "kirim-chiqim-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "uz.kirimchiqim.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "uz.kirimchiqim.mobile"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      ["expo-sqlite", {"useSQLCipher": false}]
+    ],
+    "scheme": "kirimchiqim",
+    "extra": {
+      "router": {"origin": false},
+      "eas": {"projectId": "REPLACE_WITH_EAS_PROJECT_ID"}
+    }
+  }
+}

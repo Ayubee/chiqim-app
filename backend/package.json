@@ -1,0 +1,20 @@
+{
+  "name": "chiqim-backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "tsc --noEmit",
+    "supabase": "supabase"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.3"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.3.10",
+    "@types/node": "24.5.2",
+    "typescript": "5.9.2",
+    "supabase": "2.120.0"
+  }
+}
