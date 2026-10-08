@@ -15,6 +15,7 @@ if (!existsSync(cli))
   fail("Backend katalogida npm.cmd ci bajaring: Supabase CLI yetishmaydi.");
 const dockerCandidates = ["docker"];
 if (process.platform === "win32") {
+  dockerCandidates.push(join(root, ".local-tools/docker-desktop/resources/bin/docker.exe"));
   dockerCandidates.push(
     join(
       process.env.ProgramFiles ?? "C:/Program Files",

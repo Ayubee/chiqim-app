@@ -1,10 +1,14 @@
 import { supabase } from './supabaseClient';
 import { Profile, Store, AuthSession } from '@/types';
+import { isMockEnabled, mockSignIn } from './mockApiService';
 
 export async function signIn(
   email: string,
   password: string
 ): Promise<{ session: AuthSession; profile: Profile; store: Store | null }> {
+  if (isMockEnabled()) {
+    return mockSignIn(email, password);
+  }
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw new Error(error.message);
   if (!data.session || !data.user) throw new Error('Kirish amalga oshmadi');
