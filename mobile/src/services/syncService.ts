@@ -1,4 +1,5 @@
 import { mockSyncExpenses, isMockEnabled } from './mockApiService';
+import { supabase } from './supabaseClient';
 import {
   getPendingOutboxOperations,
   markExpenseSynced,
@@ -70,34 +71,77 @@ async function callSyncAPI(
   }
 
   const url = `${supabaseUrl}/functions/v1/sync-expenses`;
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        apikey: supabaseKey,
-        'Content-Type': 'application/json',
-        'X-Store-Id': storeId,
-        'X-Store-Assignment-Version': String(assignmentVersion),
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: supabaseKey,
+          'Content-Type': 'application/json',
+          'X-Store-Id': storeId,
+          'X-Store-Assignment-Version': String(assignmentVersion),
+        },
+        body: JSON.stringify(request),
       },
-      body: JSON.stringify(request),
-    },
-    SYNC_TIMEOUT_MS
-  );
+      SYNC_TIMEOUT_MS
+    );
 
-  if (response.status === 401) {
-    throw new SyncAuthError('Token muddati tugagan');
-  }
-  if (response.status === 403) {
-    throw new SyncAuthError("Ruxsat yo'q");
-  }
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new SyncNetworkError(`Server xatosi ${response.status}: ${text}`);
+    if (response.status === 401) {
+      throw new SyncAuthError('Token muddati tugagan');
+    }
+    if (response.status === 403) {
+      throw new SyncAuthError("Ruxsat yo'q");
+    }
+    if (response.ok) {
+      return (await response.json()) as SyncResponse;
+    }
+    if (response.status !== 404) {
+      const text = await response.text().catch(() => '');
+      throw new SyncNetworkError(`Server xatosi ${response.status}: ${text}`);
+    }
+  } catch (err) {
+    if (err instanceof SyncAuthError) throw err;
+    if (err instanceof SyncNetworkError) throw err;
   }
 
-  return response.json() as Promise<SyncResponse>;
+  // Fallback to direct PostgREST RPC
+  const results: SyncResponse['results'] = [];
+  for (const op of request.operations) {
+    const fallback = {
+      operation_id: op.operation_id,
+      expense_id: op.expense.id,
+      status: 'rejected' as const,
+      error_code: 'INTERNAL_ERROR',
+    };
+    try {
+      const { data, error } = await supabase.rpc('sync_expense', {
+        operation: op,
+        context_store: storeId,
+        context_version: assignmentVersion,
+      });
+      if (error || !data) {
+        results.push(fallback);
+      } else {
+        results.push(data as SyncResponse['results'][number]);
+      }
+    } catch {
+      results.push(fallback);
+    }
+  }
+
+  if (results.every((r) => r.status === 'accepted' || r.status === 'duplicate')) {
+    await supabase.rpc('finish_expense_sync', {
+      device: request.device_id,
+      operation_ids: results.map((r) => r.operation_id),
+    });
+  }
+
+  return {
+    results,
+    server_time: new Date().toISOString(),
+  };
 }
 
 export class SyncAuthError extends Error {
